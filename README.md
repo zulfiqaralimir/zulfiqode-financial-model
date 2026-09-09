@@ -1,8 +1,12 @@
 # ZulfiQode Financial Model
 
+![ZulfiQode Financial Model](images/Thumbnail.png)
+
 Interactive 3-year startup financial model dashboard for ZulfiQode / Black Iron Quantum AI.
 React + Vite, fully client-side — no backend, no database. Every assumption in the sidebar
 recalculates the full 36-month model instantly.
+
+**Live:** [zulfiqode-financial-model.vercel.app](https://zulfiqode-financial-model.vercel.app)
 
 ## Run locally
 

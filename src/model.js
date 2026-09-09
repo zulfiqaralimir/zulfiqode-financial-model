@@ -222,13 +222,44 @@ export function computeModel(assumptions) {
     const yearMonths = months.filter((m) => m.year === yr);
     const sum = (key) => yearMonths.reduce((acc, m) => acc + m[key], 0);
     const last = yearMonths[yearMonths.length - 1];
+    const prevYearEnd = yr === 1 ? null : months.find((m) => m.year === yr - 1 && m.month === (yr - 1) * 12);
+    const beginningCash = prevYearEnd ? prevYearEnd.cash : 0;
+    const beginningAR = prevYearEnd ? prevYearEnd.accountsReceivable : 0;
+    const beginningAP = prevYearEnd ? prevYearEnd.accountsPayable : 0;
     return {
       year: yr,
+      // Income statement
+      corporateRevenue: sum("corporateRevenue"),
+      saasRevenue: sum("saasRevenue"),
       revenue: sum("revenue"),
+      infraCost: sum("infraCost"),
+      hostingCost: sum("hostingCost"),
       totalCogs: sum("totalCogs"),
       grossProfit: sum("grossProfit"),
+      marketing: sum("marketing"),
+      salary: sum("salary"),
+      ga: sum("ga"),
+      badDebt: sum("badDebt"),
+      depreciation: sum("depreciation"),
       totalOpex: sum("totalOpex"),
+      pbt: sum("pbt"),
+      tax: sum("tax"),
       netProfit: sum("netProfit"),
+      // Balance sheet (as of year end)
+      accountsReceivable: last.accountsReceivable,
+      accountsPayable: last.accountsPayable,
+      equipmentNBV: last.equipmentNBV,
+      cash: last.cash,
+      cumulativeNetProfit: last.cumulativeNetProfit,
+      paidInCapital: assumptions.financing.paidInCapital,
+      // Cash flow statement
+      arChange: last.accountsReceivable - beginningAR,
+      apChange: last.accountsPayable - beginningAP,
+      operatingCash: sum("operatingCash"),
+      investingCash: sum("investingCash"),
+      financingCash: sum("financingCash"),
+      netChange: sum("netChange"),
+      beginningCash,
       endingCash: last.cash,
       corporateClients: last.corporateClients,
       saasSubs: last.saasSubs,
@@ -242,9 +273,49 @@ export function computeModel(assumptions) {
   const corporateClientsYr3 = months[months.length - 1].corporateClients;
   const saasSubsYr3 = months[months.length - 1].saasSubs;
 
+  // Salary schedule: per role, per year (headcount x escalated monthly salary x 12)
+  const salarySchedule = team.map((role) => {
+    const yearTotals = [0, 1, 2].map((yearIdx) => {
+      const monthlySalary = escalate(role.salaryYear1, role.escalation, yearIdx);
+      return role.headcount[yearIdx] * monthlySalary * 12;
+    });
+    return {
+      name: role.name,
+      yearTotals,
+      total: yearTotals.reduce((a, b) => a + b, 0),
+    };
+  });
+
+  // Depreciation schedule: per capex asset, per year (price/life x in-service months that year)
+  const YEAR_MONTH_RANGES = [
+    [1, 12],
+    [13, 24],
+    [25, 36],
+  ];
+  const depreciationSchedule = capex.map((asset) => {
+    const inServiceStart = asset.month;
+    const inServiceEnd = asset.month + asset.life - 1;
+    const monthlyDep = asset.price / asset.life;
+    const yearTotals = YEAR_MONTH_RANGES.map(([rangeStart, rangeEnd]) => {
+      const overlapStart = Math.max(inServiceStart, rangeStart);
+      const overlapEnd = Math.min(inServiceEnd, rangeEnd);
+      const overlapMonths = Math.max(0, overlapEnd - overlapStart + 1);
+      return monthlyDep * overlapMonths;
+    });
+    return {
+      name: asset.name,
+      price: asset.price,
+      life: asset.life,
+      yearTotals,
+      total: yearTotals.reduce((a, b) => a + b, 0),
+    };
+  });
+
   return {
     months,
     annual,
+    salarySchedule,
+    depreciationSchedule,
     dashboard: {
       totalRevenue3yr,
       totalNetProfit3yr,

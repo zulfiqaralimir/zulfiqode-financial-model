@@ -88,6 +88,27 @@ function KpiCard({ label, value, colorClass, small }) {
   );
 }
 
+function Row({ label, values, variant, colorize }) {
+  return (
+    <tr className={variant ? `${variant}-row` : ""}>
+      <td>{label}</td>
+      {values.map((v, i) => (
+        <td key={i} className={colorize ? signClass(v) : ""}>
+          {formatFull(v)}
+        </td>
+      ))}
+    </tr>
+  );
+}
+
+function SectionRow({ label, span }) {
+  return (
+    <tr className="section-row">
+      <td colSpan={span}>{label}</td>
+    </tr>
+  );
+}
+
 function ChartTooltip({ active, payload, label, formatter }) {
   if (!active || !payload || !payload.length) return null;
   return (
@@ -102,15 +123,27 @@ function ChartTooltip({ active, payload, label, formatter }) {
   );
 }
 
+const STATEMENT_TABS = [
+  { key: "summary", label: "Annual Summary" },
+  { key: "income", label: "Income Statement" },
+  { key: "balance", label: "Balance Sheet" },
+  { key: "cashflow", label: "Cash Flow Statement" },
+  { key: "salary", label: "Salary Schedule" },
+  { key: "depreciation", label: "Depreciation Schedule" },
+];
+
 export default function App() {
   const [assumptions, setAssumptions] = useState(defaultAssumptions);
+  const [statementTab, setStatementTab] = useState("summary");
 
   const result = useMemo(() => computeModel(assumptions), [assumptions]);
-  const { dashboard, annual, months } = result;
+  const { dashboard, annual, months, salarySchedule, depreciationSchedule } = result;
 
   const update = (path) => (value) => setAssumptions((prev) => setPath(prev, path, value));
 
   const annualYears = [0, 1, 2];
+  const cols = [annual[0], annual[1], annual[2]];
+  const v = (key) => cols.map((c) => c[key]);
 
   return (
     <div className="app-shell">
@@ -376,70 +409,162 @@ export default function App() {
         </div>
 
         <div className="panel">
-          <h2 className="panel-title">Annual Summary</h2>
+          <div className="statement-tabs">
+            {STATEMENT_TABS.map((t) => (
+              <button
+                key={t.key}
+                className={`statement-tab ${statementTab === t.key ? "active" : ""}`}
+                onClick={() => setStatementTab(t.key)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
           <div style={{ overflowX: "auto" }}>
             <table className="summary-table">
               <thead>
                 <tr>
-                  <th>Metric</th>
+                  <th>{STATEMENT_TABS.find((t) => t.key === statementTab).label}</th>
                   {annualYears.map((i) => (
                     <th key={i}>Year {i + 1}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>Revenue</td>
-                  {annualYears.map((i) => (
-                    <td key={i}>{formatFull(annual[i].revenue)}</td>
-                  ))}
-                </tr>
-                <tr>
-                  <td>COGS</td>
-                  {annualYears.map((i) => (
-                    <td key={i}>{formatFull(annual[i].totalCogs)}</td>
-                  ))}
-                </tr>
-                <tr>
-                  <td>Gross Profit</td>
-                  {annualYears.map((i) => (
-                    <td key={i}>{formatFull(annual[i].grossProfit)}</td>
-                  ))}
-                </tr>
-                <tr>
-                  <td>Total OpEx</td>
-                  {annualYears.map((i) => (
-                    <td key={i}>{formatFull(annual[i].totalOpex)}</td>
-                  ))}
-                </tr>
-                <tr>
-                  <td>Net Profit</td>
-                  {annualYears.map((i) => (
-                    <td key={i} className={signClass(annual[i].netProfit)}>
-                      {formatFull(annual[i].netProfit)}
-                    </td>
-                  ))}
-                </tr>
-                <tr>
-                  <td>Ending Cash</td>
-                  {annualYears.map((i) => (
-                    <td key={i} className={signClass(annual[i].endingCash)}>
-                      {formatFull(annual[i].endingCash)}
-                    </td>
-                  ))}
-                </tr>
-                <tr>
-                  <td>Corporate Clients</td>
-                  {annualYears.map((i) => (
-                    <td key={i}>{formatNumber(annual[i].corporateClients)}</td>
-                  ))}
-                </tr>
-                <tr>
-                  <td>SaaS Subscribers</td>
-                  {annualYears.map((i) => (
-                    <td key={i}>{formatNumber(annual[i].saasSubs)}</td>
-                  ))}
-                </tr>
+                {statementTab === "summary" && (
+                  <>
+                    <Row label="Revenue" values={v("revenue")} />
+                    <Row label="COGS" values={v("totalCogs")} />
+                    <Row label="Gross Profit" values={v("grossProfit")} variant="subtotal" />
+                    <Row label="Total OpEx" values={v("totalOpex")} />
+                    <Row label="Net Profit" values={v("netProfit")} variant="total" colorize />
+                    <Row label="Ending Cash" values={v("endingCash")} colorize />
+                    <tr>
+                      <td>Corporate Clients</td>
+                      {annualYears.map((i) => (
+                        <td key={i}>{formatNumber(annual[i].corporateClients)}</td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td>SaaS Subscribers</td>
+                      {annualYears.map((i) => (
+                        <td key={i}>{formatNumber(annual[i].saasSubs)}</td>
+                      ))}
+                    </tr>
+                  </>
+                )}
+
+                {statementTab === "income" && (
+                  <>
+                    <SectionRow label="Revenue" span={4} />
+                    <Row label="Corporate Revenue" values={v("corporateRevenue")} />
+                    <Row label="SaaS Revenue" values={v("saasRevenue")} />
+                    <Row label="Total Revenue" values={v("revenue")} variant="subtotal" />
+
+                    <SectionRow label="Cost of Revenue" span={4} />
+                    <Row label="Infrastructure Cost" values={v("infraCost")} />
+                    <Row label="Hosting Cost" values={v("hostingCost")} />
+                    <Row label="Total COGS" values={v("totalCogs")} variant="subtotal" />
+                    <Row label="Gross Profit" values={v("grossProfit")} variant="subtotal" colorize />
+
+                    <SectionRow label="Operating Expenses" span={4} />
+                    <Row label="Marketing" values={v("marketing")} />
+                    <Row label="Salaries & Benefits" values={v("salary")} />
+                    <Row label="General & Administrative" values={v("ga")} />
+                    <Row label="Bad Debt Expense" values={v("badDebt")} />
+                    <Row label="Depreciation" values={v("depreciation")} />
+                    <Row label="Total Operating Expenses" values={v("totalOpex")} variant="subtotal" />
+
+                    <SectionRow label="Profit" span={4} />
+                    <Row label="Profit Before Tax" values={v("pbt")} variant="subtotal" colorize />
+                    <Row label="Tax" values={v("tax")} />
+                    <Row label="Net Profit" values={v("netProfit")} variant="total" colorize />
+                  </>
+                )}
+
+                {statementTab === "balance" && (
+                  <>
+                    <SectionRow label="Assets" span={4} />
+                    <Row label="Cash" values={v("cash")} colorize />
+                    <Row label="Accounts Receivable" values={v("accountsReceivable")} />
+                    <Row label="Equipment (Net Book Value)" values={v("equipmentNBV")} />
+                    <Row
+                      label="Total Assets"
+                      values={cols.map((c) => c.cash + c.accountsReceivable + c.equipmentNBV)}
+                      variant="total"
+                    />
+
+                    <SectionRow label="Liabilities" span={4} />
+                    <Row label="Accounts Payable" values={v("accountsPayable")} />
+                    <Row label="Total Liabilities" values={v("accountsPayable")} variant="subtotal" />
+
+                    <SectionRow label="Equity" span={4} />
+                    <Row label="Paid-in Capital" values={v("paidInCapital")} />
+                    <Row label="Retained Earnings (Cumulative Net Profit)" values={v("cumulativeNetProfit")} colorize />
+                    <Row
+                      label="Total Equity"
+                      values={cols.map((c) => c.paidInCapital + c.cumulativeNetProfit)}
+                      variant="subtotal"
+                    />
+
+                    <Row
+                      label="Total Liabilities & Equity"
+                      values={cols.map((c) => c.accountsPayable + c.paidInCapital + c.cumulativeNetProfit)}
+                      variant="total"
+                    />
+                  </>
+                )}
+
+                {statementTab === "cashflow" && (
+                  <>
+                    <SectionRow label="Operating Activities" span={4} />
+                    <Row label="Net Profit" values={v("netProfit")} colorize />
+                    <Row label="+ Depreciation" values={v("depreciation")} />
+                    <Row label="(Increase) / Decrease in Accounts Receivable" values={v("arChange").map((x) => -x)} />
+                    <Row label="Increase / (Decrease) in Accounts Payable" values={v("apChange")} />
+                    <Row label="Net Cash from Operating Activities" values={v("operatingCash")} variant="subtotal" colorize />
+
+                    <SectionRow label="Investing Activities" span={4} />
+                    <Row label="Purchase of Equipment" values={v("investingCash")} />
+                    <Row label="Net Cash from Investing Activities" values={v("investingCash")} variant="subtotal" colorize />
+
+                    <SectionRow label="Financing Activities" span={4} />
+                    <Row label="Paid-in Capital" values={v("financingCash")} />
+                    <Row label="Net Cash from Financing Activities" values={v("financingCash")} variant="subtotal" colorize />
+
+                    <SectionRow label="Net Change" span={4} />
+                    <Row label="Net Change in Cash" values={v("netChange")} variant="subtotal" colorize />
+                    <Row label="Beginning Cash" values={v("beginningCash")} />
+                    <Row label="Ending Cash" values={v("endingCash")} variant="total" colorize />
+                  </>
+                )}
+
+                {statementTab === "salary" && (
+                  <>
+                    {salarySchedule.map((role) => (
+                      <Row key={role.name} label={role.name} values={role.yearTotals} />
+                    ))}
+                    <Row
+                      label="Total Salaries & Benefits"
+                      values={[0, 1, 2].map((i) => salarySchedule.reduce((acc, r) => acc + r.yearTotals[i], 0))}
+                      variant="total"
+                    />
+                  </>
+                )}
+
+                {statementTab === "depreciation" && (
+                  <>
+                    {depreciationSchedule.map((asset) => (
+                      <Row key={asset.name} label={asset.name} values={asset.yearTotals} />
+                    ))}
+                    <Row
+                      label="Total Depreciation"
+                      values={[0, 1, 2].map((i) => depreciationSchedule.reduce((acc, a) => acc + a.yearTotals[i], 0))}
+                      variant="total"
+                    />
+                  </>
+                )}
               </tbody>
             </table>
           </div>
